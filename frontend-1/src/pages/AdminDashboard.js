@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createTask, getEligibleUsers, recompute, getMyCreatedTasks } from "../api/tasks";
 
 export default function AdminDashboard() {
+
   const [task, setTask] = useState({
     title: "",
     description: "",
@@ -15,6 +16,9 @@ export default function AdminDashboard() {
   const [tasks, setTasks] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState("");
 
   useEffect(() => {
     fetchTasks();
@@ -81,12 +85,36 @@ export default function AdminDashboard() {
 
     setRecomputing(true);
 
-    await recompute();
+    await recompute(taskId); 
 
     setTimeout(() => {
       fetchUsers();
       setRecomputing(false);
     }, 3000);
+  };
+
+  const handleViewUsers = async (id) => {
+    setSelectedTaskId(id);
+    setShowModal(true);
+    setLoadingUsers(true);
+
+    const res = await getEligibleUsers(id);
+    setUsers(res.data?.users || []);
+
+    setLoadingUsers(false);
+  };
+
+  const handleRecomputeTask = async (id) => {
+    setSelectedTaskId(id);
+    setRecomputing(true);
+
+    await recompute(id);
+
+    const res = await getEligibleUsers(id);
+    setUsers(res.data?.users || []);
+
+    setRecomputing(false);
+    setShowModal(true);
   };
 
   return (
@@ -120,7 +148,6 @@ export default function AdminDashboard() {
         <input className="form-control mb-2" placeholder="Location"
           onChange={(e)=>setTask({...task, rules:{...task.rules,location:e.target.value}})} />
 
-
         <button className="btn btn-primary" onClick={handleCreate}>
           Create Task
         </button>
@@ -134,22 +161,34 @@ export default function AdminDashboard() {
         ) : (
           tasks.map(t => (
             <div key={t.id} className="border p-2 mb-2">
-	      <b>{t.title}</b>
-	      <p>Task Id: {t.id}</p>
+              <b>{t.title}</b>
+              <p>Task Id: {t.id}</p>
               <p>Status: {t.status}</p>
               <p>Priority: {t.priority}</p>
               <p>Due Date: {t.due_date}</p>
-              <p>Department: {t.rules?.department || "N/A"}</p>
-              <p>Experience: {t.rules?.min_experience || "N/A"}</p>
-              <p>Location: {t.rules?.location || "N/A"}</p>
-              <p>Max Tasks: {t.rules?.max_tasks || "N/A"}</p>
+	     <p>Location: {t.rules?.location || "N/A"}</p>
+	    <p>Experience: {t.rules?.min_experience || "0"} years</p>
+
+              <button
+                className="btn btn-success me-2"
+                onClick={() => handleViewUsers(t.id)}
+              >
+                View Eligible Users
+              </button>
+
+              <button
+                className="btn btn-warning"
+                onClick={() => handleRecomputeTask(t.id)}
+              >
+                Recompute
+              </button>
             </div>
           ))
         )}
       </div>
 
       <div className="card p-3">
-        <h4>Eligible Users</h4>
+        <h4>Find Eligible Users By Task ID</h4>
 
         <input
           className="form-control mb-2"
@@ -181,6 +220,39 @@ export default function AdminDashboard() {
           !loadingUsers && <p>No users found</p>
         )}
       </div>
+
+      {showModal && (
+        <div className="modal d-block" style={{background: "rgba(0,0,0,0.5)"}}>
+          <div className="modal-dialog">
+            <div className="modal-content p-3">
+
+              <h5>Eligible Users (Task: {selectedTaskId})</h5>
+
+              {loadingUsers && <p>Loading...</p>}
+              {recomputing && <p>Recomputing...</p>}
+
+              {users.length > 0 ? (
+                users.map(u => (
+                  <div key={u.id} className="border p-2 mb-1">
+                    {u.email}
+                  </div>
+                ))
+              ) : (
+                !loadingUsers && <p>No users found</p>
+              )}
+
+              <button
+                className="btn btn-danger mt-2"
+                onClick={() => setShowModal(false)}
+              >
+                Close
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
